@@ -18,20 +18,23 @@
             .print-break-inside-avoid { break-inside: avoid; }
         }
     </style>
-<script type="importmap">
+    <!-- 使用 Babel Standalone 实时编译 TSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "chart.js": "https://esm.sh/chart.js@4.4.1",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "chart.js": "https://esm.sh/chart.js@^4.5.1"
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
 </head>
 <body>
     <div id="root"></div>
-    <!-- 引入入口模块，确保应用能够被初始化 -->
-    <script type="module" src="./index.tsx"></script>
+    <!-- 显式指明 presets，使 Babel 能够解析 React 和 TypeScript -->
+    <script type="text/babel" data-presets="react,typescript" src="./index.tsx"></script>
 </body>
 </html>
