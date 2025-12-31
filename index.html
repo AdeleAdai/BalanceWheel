@@ -1,40 +1,488 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>阿呆的生命平衡轮 - 数字化人生教练</title>
+    <title>阿呆的生命平衡轮 - Ah Dai's Wheel of Life</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Noto Sans SC', sans-serif;
-            background-color: #f8fafc; /* slate-50 */
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#0284c7' }, // Blue
+                        vision: { 500: '#f97316', 600: '#ea580c' } // Orange
+                    },
+                    fontFamily: { sans: ['Noto Sans SC', 'sans-serif'] }
+                }
+            }
         }
+    </script>
+    <style>
+        body { background-color: #f8fafc; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* 隐藏滚动条但保留功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            .print-break-inside-avoid { break-inside: avoid; }
+            button { display: none !important; }
         }
     </style>
-    <!-- 使用 Babel Standalone 实时编译 TSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "chart.js": "https://esm.sh/chart.js@4.4.1",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
-  }
-}
-</script>
 </head>
-<body>
-    <div id="root"></div>
-    <!-- 显式指明 presets，使 Babel 能够解析 React 和 TypeScript -->
-    <script type="text/babel" data-presets="react,typescript" src="./index.tsx"></script>
+<body class="text-slate-700 antialiased min-h-screen flex flex-col items-center py-8 px-4">
+
+    <main class="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden min-h-[600px] relative">
+        
+        <div class="h-2 bg-slate-100 w-full">
+            <div id="progress-bar" class="h-full bg-brand-500 transition-all duration-500" style="width: 0%"></div>
+        </div>
+
+        <div id="app-content" class="p-6 md:p-10">
+            </div>
+
+    </main>
+
+    <footer class="mt-8 text-slate-400 text-sm text-center no-print">
+        <p>© 2025 阿呆的生命平衡轮 | Designed for Awareness</p>
+    </footer>
+
+    <script>
+        // --- 核心数据状态 ---
+        const state = {
+            step: 0,
+            dimensions: ['事业发展', '家庭亲密', '身体健康', '财务状况', '人际关系', '个人成长', '娱乐休闲', '心灵/精神'],
+            currentScores: {}, // Step 1 data
+            visionScores: {},  // Step 2 data
+            journalEntries: {}, // Free text for each step
+            focusArea: '',      // Step 3 choice
+            microAction: { what: '', when: '' } // Step 4 data
+        };
+
+        // --- DOM 元素引用 ---
+        const contentDiv = document.getElementById('app-content');
+        const progressBar = document.getElementById('progress-bar');
+        let myChart = null; // Chart 实例
+
+        // --- 初始化 ---
+        function init() {
+            // 初始化分数
+            state.dimensions.forEach(d => {
+                state.currentScores[d] = 5;
+                state.visionScores[d] = 5;
+            });
+            renderStep0();
+        }
+
+        // --- 渲染辅助函数 ---
+        function updateProgress(percent) {
+            progressBar.style.width = `${percent}%`;
+        }
+
+        function createTextarea(id, placeholder) {
+            return `
+                <textarea id="${id}" 
+                    class="w-full h-32 p-4 mt-4 text-slate-700 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none resize-none transition-all placeholder:text-slate-400"
+                    placeholder="${placeholder}">${state.journalEntries[state.step] || ''}</textarea>
+            `;
+        }
+
+        function saveJournal(step) {
+            const el = document.getElementById(`journal-${step}`);
+            if (el) state.journalEntries[step] = el.value;
+        }
+
+        // --- Step 0: Setup (自定义维度) ---
+        function renderStep0() {
+            updateProgress(10);
+            let dimListHtml = state.dimensions.map((dim, index) => `
+                <div class="flex items-center gap-2 mb-2">
+                    <input type="text" value="${dim}" data-index="${index}" 
+                        class="dim-input flex-1 p-2 bg-slate-50 border border-slate-200 rounded text-slate-700 focus:outline-none focus:border-brand-500"
+                        onchange="updateDimensionName(${index}, this.value)">
+                    <button onclick="removeDimension(${index})" class="text-slate-400 hover:text-red-500 p-2" ${state.dimensions.length <= 6 ? 'disabled style="opacity:0.3"' : ''}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                    </button>
+                </div>
+            `).join('');
+
+            contentDiv.innerHTML = `
+                <div class="fade-in">
+                    <h1 class="text-2xl font-bold text-slate-800 mb-2">第一步：定义你的生活维度</h1>
+                    <p class="text-slate-500 mb-6">拿一张白纸，画一个大圆圈，像切蛋糕一样切分你的人生。默认这里有8块‘蛋糕’，你可以修改它们的名字，或者增减数量（6-10个），让它完全属于你。</p>
+                    
+                    <div class="mb-6 max-h-[300px] overflow-y-auto no-scrollbar">
+                        ${dimListHtml}
+                        <button onclick="addDimension()" class="mt-2 w-full py-2 border-2 border-dashed border-slate-200 text-slate-400 rounded-lg hover:border-brand-500 hover:text-brand-500 transition-colors flex items-center justify-center gap-2" ${state.dimensions.length >= 10 ? 'disabled style="display:none"' : ''}>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" /></svg>
+                            添加新维度
+                        </button>
+                    </div>
+
+                    <button onclick="goToStep1()" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-brand-500/30 transition-all transform active:scale-95">
+                        下一步：现状打分
+                    </button>
+                </div>
+            `;
+        }
+
+        // Step 0 逻辑
+        window.updateDimensionName = (index, val) => { 
+            state.dimensions[index] = val; 
+            // 同步更新 key
+            state.currentScores[val] = state.currentScores[val] || 5; 
+            state.visionScores[val] = state.visionScores[val] || 5;
+        };
+        window.addDimension = () => { if(state.dimensions.length < 10) { state.dimensions.push('新维度'); initScoresForNew(); renderStep0(); } };
+        window.removeDimension = (idx) => { if(state.dimensions.length > 6) { state.dimensions.splice(idx, 1); renderStep0(); } };
+        window.initScoresForNew = () => { state.dimensions.forEach(d => { if(state.currentScores[d] === undefined) state.currentScores[d] = 5; if(state.visionScores[d] === undefined) state.visionScores[d] = 5; }); };
+        window.goToStep1 = () => { state.step = 1; renderStep1(); };
+
+
+        // --- Step 1: 现状打分 (Current Reality) ---
+        function renderStep1() {
+            updateProgress(30);
+            
+            // 构建滑块
+            let slidersHtml = state.dimensions.map(dim => `
+                <div class="mb-4">
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-medium text-slate-700">${dim}</label>
+                        <span class="text-sm font-bold text-brand-600" id="score-val-${dim}">${state.currentScores[dim]}</span>
+                    </div>
+                    <input type="range" min="1" max="10" value="${state.currentScores[dim]}" 
+                        class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
+                        oninput="updateScore('${dim}', this.value, 'current')">
+                </div>
+            `).join('');
+
+            contentDiv.innerHTML = `
+                <div class="fade-in">
+                    <h1 class="text-2xl font-bold text-slate-800 mb-2">第二步：现状打分</h1>
+                    <p class="text-slate-500 mb-6">想象圆心是0分（不满意），最外圈是10分（非常满意）。请凭直觉为当下的状态打分。</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            ${slidersHtml}
+                        </div>
+                        <div class="flex items-center justify-center bg-slate-50 rounded-xl p-4">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 bg-slate-50 p-6 rounded-xl border-l-4 border-brand-500">
+                        <h3 class="font-bold text-slate-800 mb-2">👉 看着这个图形：</h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1">
+                            <li>你的第一感觉是什么？惊讶、难过，还是意料之中？</li>
+                            <li>看着刚才定义的这些词，除了工作和家庭，哪一个是你很久没有好好关照过的了？</li>
+                            <li>在过去的一年里，哪个领域最让你感到滋养和快乐？</li>
+                        </ul>
+                        ${createTextarea('journal-1', '这里是你的自由书写空间，跟随直觉记录...')}
+                    </div>
+
+                    <button onclick="goToStep2()" class="mt-6 w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-brand-500/30 transition-all transform active:scale-95">
+                        下一步：描绘愿景
+                    </button>
+                </div>
+            `;
+            initChart('current');
+        }
+
+        window.updateScore = (dim, val, type) => {
+            document.getElementById(`score-val-${dim}`).innerText = val;
+            if (type === 'current') {
+                state.currentScores[dim] = parseInt(val);
+                // 同步更新愿景分的初始值，如果是第一次进入Step2
+                state.visionScores[dim] = parseInt(val); 
+            } else {
+                state.visionScores[dim] = parseInt(val);
+            }
+            updateChart(type);
+        };
+        window.goToStep2 = () => { saveJournal(1); state.step = 2; renderStep2(); };
+
+
+        // --- Step 2: 愿景描绘 (Future Vision) ---
+        function renderStep2() {
+            updateProgress(50);
+
+            let slidersHtml = state.dimensions.map(dim => `
+                <div class="mb-4">
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-medium text-slate-700">${dim}</label>
+                        <span class="text-sm font-bold text-vision-600" id="score-val-${dim}">${state.visionScores[dim]}</span>
+                    </div>
+                    <input type="range" min="1" max="10" value="${state.visionScores[dim]}" 
+                        class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-vision-500"
+                        oninput="updateScore('${dim}', this.value, 'vision')">
+                </div>
+            `).join('');
+
+            contentDiv.innerHTML = `
+                <div class="fade-in">
+                    <h1 class="text-2xl font-bold text-slate-800 mb-2">第三步：描绘愿景</h1>
+                    <p class="text-slate-500 mb-6">现在，让我们把目光投向未来。为了达到你想要的状态，你希望各个维度是多少分？(默认为现状分)</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>${slidersHtml}</div>
+                        <div class="flex items-center justify-center bg-slate-50 rounded-xl p-4">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 bg-orange-50 p-6 rounded-xl border-l-4 border-vision-500">
+                        <h3 class="font-bold text-slate-800 mb-2">👉 关于未来（6个月-1年）：</h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1">
+                            <li>假设时间到了，一切如愿，请描述一下那天从早到晚，你度过了怎样完美的一天？</li>
+                            <li>在那个理想状态里，你成为了一个怎样的人？你身上多了哪些现在没有的品质？</li>
+                            <li>为什么达到这个状态对你如此重要？它满足了你内心深处的什么渴望？</li>
+                        </ul>
+                        ${createTextarea('journal-2', '尽情畅想你的未来...')}
+                    </div>
+
+                    <button onclick="goToStep3()" class="mt-6 w-full bg-vision-600 hover:bg-vision-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-vision-500/30 transition-all transform active:scale-95">
+                        下一步：寻找杠杆点
+                    </button>
+                </div>
+            `;
+            initChart('vision'); // 此时显示双层图
+        }
+        window.goToStep3 = () => { saveJournal(2); state.step = 3; renderStep3(); };
+
+
+        // --- Step 3: 寻找杠杆点 (Leverage) ---
+        function renderStep3() {
+            updateProgress(70);
+            
+            // 找出 Gap 最大的前3个
+            let gaps = state.dimensions.map(d => ({ dim: d, gap: state.visionScores[d] - state.currentScores[d] }));
+            gaps.sort((a, b) => b.gap - a.gap);
+            let topGaps = gaps.slice(0, 3).map(g => g.dim);
+
+            let radioHtml = state.dimensions.map(dim => {
+                let isTop = topGaps.includes(dim);
+                return `
+                <label class="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-slate-50 ${isTop ? 'border-brand-200 bg-brand-50' : 'border-slate-200'}">
+                    <input type="radio" name="focus" value="${dim}" class="w-4 h-4 text-brand-600 focus:ring-brand-500 border-gray-300" onclick="state.focusArea = '${dim}'">
+                    <span class="ml-2 text-sm text-slate-700 ${isTop ? 'font-bold' : ''}">${dim} ${isTop ? '<span class="text-xs text-brand-500 ml-1">(推荐)</span>' : ''}</span>
+                </label>
+            `}).join('');
+
+            contentDiv.innerHTML = `
+                <div class="fade-in">
+                    <h1 class="text-2xl font-bold text-slate-800 mb-2">第四步：寻找杠杆点</h1>
+                    <p class="text-slate-500 mb-6">不要试图同时提升所有低分项。我们需要找到那个能撬动全局的‘杠杆点’。</p>
+
+                    <div class="flex items-center justify-center bg-slate-50 rounded-xl p-4 mb-6 h-64">
+                         <canvas id="radarChart"></canvas>
+                    </div>
+
+                    <div class="mb-6">
+                        <h3 class="font-bold text-slate-800 mb-3">请选择 1 个你最想在接下来改善的领域：</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            ${radioHtml}
+                        </div>
+                    </div>
+
+                    <div class="mt-8 bg-slate-50 p-6 rounded-xl border-l-4 border-slate-400">
+                        <h3 class="font-bold text-slate-800 mb-2">👉 深度思考：</h3>
+                        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1">
+                            <li>在这些低分项中，哪一项让你此刻最痛苦、最想改变？</li>
+                            <li>如果只选择一个领域在明年优先改善，你会选哪个？为什么？</li>
+                            <li>想象一下，如果这个领域的得分从现状提高到了愿景分，它会对你生活的其他领域（比如事业、家庭）产生什么积极影响？</li>
+                        </ul>
+                        ${createTextarea('journal-3', '我的思考...')}
+                    </div>
+
+                    <button onclick="goToStep4()" class="mt-6 w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all transform active:scale-95">
+                        下一步：设计微行动
+                    </button>
+                </div>
+            `;
+            initChart('vision'); // 保持双层显示
+        }
+        window.goToStep4 = () => { 
+            if(!state.focusArea) { alert('请先选择一个重点领域！'); return; }
+            saveJournal(3); 
+            state.step = 4; 
+            renderStep4(); 
+        };
+
+        // --- Step 4: 微行动 (Micro Action) ---
+        function renderStep4() {
+            updateProgress(90);
+            contentDiv.innerHTML = `
+                <div class="fade-in">
+                    <h1 class="text-2xl font-bold text-slate-800 mb-2">第五步：微行动设计</h1>
+                    <p class="text-slate-500 mb-6">把宏大的愿望拆解为‘本周内完成’且‘小到不可能失败’的微行动。</p>
+
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-5 mb-8">
+                        <h3 class="font-bold text-yellow-800 mb-3 flex items-center">
+                            <span class="text-xl mr-2">💡</span> 阿呆的举例
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <strong class="text-slate-700 block mb-1">场景：健康 (❌ 瘦20斤)</strong>
+                                <span class="text-green-600">✅ 微行动：本周工作日，每天午饭后散步10分钟。</span>
+                            </div>
+                            <div>
+                                <strong class="text-slate-700 block mb-1">场景：成长 (❌ 读50本书)</strong>
+                                <span class="text-green-600">✅ 微行动：今晚睡前翻开书读1页。</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">针对 <span class="text-brand-600 font-bold">${state.focusArea}</span>，我的微行动是：</label>
+                            <input type="text" id="action-what" class="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none" placeholder="具体做什么？(越小越好)">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">执行时间与地点：</label>
+                            <input type="text" id="action-when" class="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none" placeholder="例如：明天早上8点，在餐桌旁">
+                        </div>
+                    </div>
+
+                    <div class="mt-6 space-y-2">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="rounded text-brand-600 focus:ring-brand-500">
+                            <span class="text-sm text-slate-600">这个行动小到不需要意志力就能完成。</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" class="rounded text-brand-600 focus:ring-brand-500">
+                            <span class="text-sm text-slate-600">我已将其写入日程表。</span>
+                        </label>
+                    </div>
+
+                    <button onclick="goToStep5()" class="mt-8 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-green-500/30 transition-all transform active:scale-95">
+                        生成我的平衡报告
+                    </button>
+                </div>
+            `;
+        }
+        window.goToStep5 = () => {
+            state.microAction.what = document.getElementById('action-what').value;
+            state.microAction.when = document.getElementById('action-when').value;
+            state.step = 5;
+            renderStep5();
+        };
+
+        // --- Step 5: 结语 (Summary) ---
+        function renderStep5() {
+            updateProgress(100);
+            contentDiv.innerHTML = `
+                <div class="fade-in text-center">
+                    <div class="print-only mb-8 hidden">
+                        <h1 class="text-3xl font-bold">我的生命平衡轮</h1>
+                        <p class="text-slate-500">${new Date().toLocaleDateString()}</p>
+                    </div>
+
+                    <h1 class="text-3xl font-bold text-slate-800 mb-2 no-print">你的觉察之旅完成了</h1>
+                    <p class="text-slate-500 mb-8 no-print">平衡不是静止的，而是动态的调整。当你开始觉察，你就拿回了主动权。</p>
+
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 mb-8 flex justify-center">
+                         <div class="w-full max-w-[500px] h-[400px]">
+                             <canvas id="radarChart"></canvas>
+                         </div>
+                    </div>
+
+                    <div class="bg-brand-50 border border-brand-100 rounded-xl p-6 text-left mb-8 break-inside-avoid">
+                        <h3 class="text-brand-800 font-bold mb-4 border-b border-brand-200 pb-2">🚀 我的行动承诺</h3>
+                        <div class="mb-4">
+                            <span class="text-xs font-bold text-brand-400 uppercase tracking-wider">核心杠杆点</span>
+                            <p class="text-xl font-bold text-slate-800">${state.focusArea}</p>
+                        </div>
+                        <div class="mb-2">
+                            <span class="text-xs font-bold text-brand-400 uppercase tracking-wider">微行动</span>
+                            <p class="text-lg text-slate-800">${state.microAction.what || '未填写'}</p>
+                        </div>
+                        <div>
+                            <span class="text-xs font-bold text-brand-400 uppercase tracking-wider">时间/地点</span>
+                            <p class="text-slate-600">${state.microAction.when || '未填写'}</p>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-4 no-print">
+                        <button onclick="window.print()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all">
+                            保存/打印报告
+                        </button>
+                        <button onclick="location.reload()" class="flex-1 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold py-3 px-6 rounded-xl transition-all">
+                            重新开始
+                        </button>
+                    </div>
+                </div>
+            `;
+            // 稍等DOM渲染后再画图
+            setTimeout(() => initChart('vision'), 100);
+        }
+
+
+        // --- Chart.js 逻辑 ---
+        function initChart(mode) {
+            const ctx = document.getElementById('radarChart');
+            if(!ctx) return;
+            
+            if (myChart) myChart.destroy();
+
+            const labels = state.dimensions;
+            const currentData = labels.map(d => state.currentScores[d]);
+            const visionData = labels.map(d => state.visionScores[d]);
+
+            const datasets = [{
+                label: '现状',
+                data: currentData,
+                backgroundColor: 'rgba(14, 165, 233, 0.2)', // brand-500 with opacity
+                borderColor: 'rgba(14, 165, 233, 1)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgba(14, 165, 233, 1)',
+            }];
+
+            if (mode === 'vision') {
+                datasets.push({
+                    label: '愿景',
+                    data: visionData,
+                    backgroundColor: 'rgba(249, 115, 22, 0)', // Transparent
+                    borderColor: 'rgba(249, 115, 22, 1)', // Orange
+                    borderWidth: 2,
+                    borderDash: [5, 5], // Dashed line
+                    pointBackgroundColor: 'rgba(249, 115, 22, 1)',
+                    pointStyle: 'rectRot'
+                });
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'radar',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: '#e2e8f0' },
+                            grid: { color: '#e2e8f0' },
+                            pointLabels: {
+                                font: { size: 12, family: "'Noto Sans SC', sans-serif" },
+                                color: '#64748b'
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 10,
+                            ticks: { display: false, stepSize: 2 }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        // 启动应用
+        init();
+
+    </script>
 </body>
 </html>

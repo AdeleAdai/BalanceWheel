@@ -91,32 +91,46 @@ const ReflectionArea: React.FC<{ prompts: string[]; value: string; onChange: (v:
   </div>
 );
 
-// --- 步骤组件 ---
+// --- 步骤子组件 ---
 
 const SetupStep = ({ state, updateState, onNext }) => {
   const canAdd = state.dimensions.length < 10;
+  const canRemove = state.dimensions.length > 6;
+  
   const handleEdit = (i, val) => {
     const d = [...state.dimensions]; d[i] = val; updateState({ dimensions: d });
   };
+  
+  const handleRemove = (i) => {
+    const d = state.dimensions.filter((_, idx) => idx !== i);
+    const cs = state.currentScores.filter((_, idx) => idx !== i);
+    const vs = state.visionScores.filter((_, idx) => idx !== i);
+    updateState({ dimensions: d, currentScores: cs, visionScores: vs });
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="text-center space-y-3">
-        <h2 className="text-3xl font-bold text-slate-900">第一步：定义你的生活维度</h2>
-        <p className="text-slate-500">你可以修改它们的名字，或者增减数量（6-10个）。</p>
+        <h2 className="text-3xl font-bold text-slate-900 tracking-tight">第一步：定义你的生活维度</h2>
+        <p className="text-slate-500 max-w-md mx-auto">你可以修改名字，或者增减数量（6-10个）。</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {state.dimensions.map((dim, i) => (
-          <div key={i} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-100">
-            <input type="text" value={dim} onChange={e => handleEdit(i, e.target.value)} className="flex-1 text-sm outline-none font-medium" />
+          <div key={i} className="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-100 shadow-sm transition-all focus-within:border-blue-400">
+            <span className="text-xs font-mono text-slate-300 w-4">{i + 1}</span>
+            <input type="text" value={dim} onChange={e => handleEdit(i, e.target.value)} className="flex-1 text-sm outline-none font-medium bg-transparent" />
+            {canRemove && (
+              <button onClick={() => handleRemove(i)} className="text-slate-300 hover:text-red-400 px-2">×</button>
+            )}
           </div>
         ))}
       </div>
-      <button onClick={onNext} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold">确定，开始现状打分</button>
+      <button onClick={onNext} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all active:scale-95">确定，开始现状打分</button>
     </div>
   );
 };
 
-// --- 主程序 ---
+// --- 主应用组件 ---
 
 const App: React.FC = () => {
   const [state, setState] = useState<WheelState>({
@@ -129,21 +143,23 @@ const App: React.FC = () => {
     microAction: { what: '', when: '', check1: false, check2: false },
   });
 
-  const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
+  const updateState = (updates: Partial<WheelState>) => setState(prev => ({ ...prev, ...updates }));
   const nextStep = () => {
     if (state.step === 1) updateState({ step: 2, visionScores: [...state.currentScores] });
     else updateState({ step: state.step + 1 });
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const prevStep = () => updateState({ step: Math.max(0, state.step - 1) });
+
+  const progressPercentage = ((state.step + 1) / 6) * 100;
 
   const renderContent = () => {
     switch(state.step) {
       case 0: return <SetupStep state={state} updateState={updateState} onNext={nextStep} />;
       case 1: 
         return (
-          <div className="space-y-8">
-            <h2 className="text-3xl font-bold text-center">现状打分 (Current Reality)</h2>
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <h2 className="text-3xl font-bold text-center text-slate-900">现状打分 (Current Reality)</h2>
             <div className="bg-white rounded-3xl p-6 shadow-xl border border-slate-100">
               <RadarChart labels={state.dimensions} datasets={[{ label: '现状', data: state.currentScores, color: '#3b82f6', fill: true }]} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6">
@@ -158,13 +174,13 @@ const App: React.FC = () => {
               </div>
             </div>
             <ReflectionArea prompts={["你的第一感觉是什么？", "哪一个领域很久没关照了？"]} value={state.reflections.step1} onChange={v => updateState({ reflections: { ...state.reflections, step1: v } })} />
-            <button onClick={nextStep} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold">描绘愿景</button>
+            <button onClick={nextStep} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg hover:bg-blue-700">描绘愿景</button>
           </div>
         );
       case 2:
         return (
-          <div className="space-y-8">
-            <h2 className="text-3xl font-bold text-center">愿景描绘 (Future Vision)</h2>
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <h2 className="text-3xl font-bold text-center text-slate-900">愿景描绘 (Future Vision)</h2>
             <div className="bg-white rounded-3xl p-6 shadow-xl border border-orange-50">
               <RadarChart labels={state.dimensions} datasets={[{ label: '愿景', data: state.visionScores, color: '#f97316', fill: true }]} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6">
@@ -178,14 +194,14 @@ const App: React.FC = () => {
                 ))}
               </div>
             </div>
-            <ReflectionArea prompts={["假设一切如愿，完美的一天是怎样的？"]} value={state.reflections.step2} onChange={v => updateState({ reflections: { ...state.reflections, step2: v } })} />
-            <div className="flex gap-4"><button onClick={prevStep} className="flex-1 py-4 bg-slate-100 rounded-2xl">返回</button><button onClick={nextStep} className="flex-[2] py-4 bg-orange-500 text-white rounded-2xl font-bold">分析差距</button></div>
+            <ReflectionArea prompts={["假设时间到了，一切如愿，生活是怎样的？"]} value={state.reflections.step2} onChange={v => updateState({ reflections: { ...state.reflections, step2: v } })} />
+            <div className="flex gap-4"><button onClick={prevStep} className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl">返回</button><button onClick={nextStep} className="flex-[2] py-4 bg-orange-500 text-white rounded-2xl font-bold">分析差距</button></div>
           </div>
         );
       case 3:
         return (
-          <div className="space-y-8">
-             <h2 className="text-3xl font-bold text-center">寻找杠杆点</h2>
+          <div className="space-y-8 animate-in fade-in duration-500">
+             <h2 className="text-3xl font-bold text-center text-slate-900">寻找杠杆点</h2>
              <div className="bg-white rounded-3xl p-6 shadow-xl border border-slate-100">
                <RadarChart labels={state.dimensions} datasets={[
                  { label: '现状', data: state.currentScores, color: '#3b82f6', fill: true },
@@ -195,62 +211,88 @@ const App: React.FC = () => {
                  <p className="text-center font-bold mb-4">请选择一个核心改善领域：</p>
                  <div className="grid grid-cols-2 gap-3">
                    {state.dimensions.map((dim, i) => (
-                     <button key={i} onClick={() => updateState({ leveragePoint: dim })} className={`p-3 rounded-xl border-2 transition-all ${state.leveragePoint === dim ? 'border-blue-500 bg-blue-50' : 'border-slate-100'}`}>{dim}</button>
+                     <button key={i} onClick={() => updateState({ leveragePoint: dim })} className={`p-4 rounded-xl border-2 transition-all font-bold ${state.leveragePoint === dim ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md' : 'border-slate-50 text-slate-600'}`}>{dim}</button>
                    ))}
                  </div>
                </div>
              </div>
-             <button onClick={nextStep} disabled={!state.leveragePoint} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold disabled:opacity-30">设定微行动</button>
+             <ReflectionArea prompts={["提升这个领域会对生活产生什么蝴蝶效应？"]} value={state.reflections.step3} onChange={v => updateState({ reflections: { ...state.reflections, step3: v } })} />
+             <div className="flex gap-4"><button onClick={prevStep} className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl">返回</button><button onClick={nextStep} disabled={!state.leveragePoint} className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl font-bold disabled:opacity-30">设定微行动</button></div>
           </div>
         );
       case 4:
         return (
-          <div className="space-y-8">
-            <h2 className="text-3xl font-bold text-center">微行动设计</h2>
-            <div className="bg-white p-8 rounded-3xl shadow-xl space-y-6">
-              <div><label className="block text-sm font-bold mb-2">针对 {state.leveragePoint}，我的行动是：</label><input type="text" value={state.microAction.what} onChange={e => updateState({ microAction: { ...state.microAction, what: e.target.value } })} className="w-full p-4 border rounded-xl" placeholder="例如：饭后散步10分钟" /></div>
-              <div><label className="block text-sm font-bold mb-2">执行时间/地点：</label><input type="text" value={state.microAction.when} onChange={e => updateState({ microAction: { ...state.microAction, when: e.target.value } })} className="w-full p-4 border rounded-xl" placeholder="例如：每天19:00" /></div>
-              <label className="flex gap-2 items-center"><input type="checkbox" checked={state.microAction.check1} onChange={e => updateState({ microAction: { ...state.microAction, check1: e.target.checked } })} /><span>行动足够小，不需要意志力</span></label>
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <h2 className="text-3xl font-bold text-center text-slate-900">微行动设计</h2>
+            <div className="bg-white p-8 rounded-3xl shadow-xl space-y-8 border">
+              <div><label className="block text-sm font-bold mb-2">针对 {state.leveragePoint}，我的行动是：</label><input type="text" value={state.microAction.what} onChange={e => updateState({ microAction: { ...state.microAction, what: e.target.value } })} className="w-full p-4 border-2 rounded-xl focus:border-blue-400 outline-none" placeholder="例如：饭后散步10分钟" /></div>
+              <div><label className="block text-sm font-bold mb-2 text-slate-800">执行时间与地点：</label><input type="text" value={state.microAction.when} onChange={e => updateState({ microAction: { ...state.microAction, when: e.target.value } })} className="w-full p-4 border-2 rounded-xl focus:border-blue-400 outline-none" placeholder="例如：每天 19:00" /></div>
+              <div className="p-4 bg-blue-50/50 rounded-xl space-y-3">
+                <label className="flex gap-2 items-center cursor-pointer"><input type="checkbox" checked={state.microAction.check1} onChange={e => updateState({ microAction: { ...state.microAction, check1: e.target.checked } })} className="w-5 h-5" /><span>行动足够小，不需要意志力</span></label>
+                <label className="flex gap-2 items-center cursor-pointer"><input type="checkbox" checked={state.microAction.check2} onChange={e => updateState({ microAction: { ...state.microAction, check2: e.target.checked } })} className="w-5 h-5" /><span>我已为此设定了外部提醒</span></label>
+              </div>
             </div>
-            <button onClick={nextStep} disabled={!state.microAction.what || !state.microAction.check1} className="w-full py-4 bg-green-600 text-white rounded-2xl font-bold">生成报告</button>
+            <div className="flex gap-4"><button onClick={prevStep} className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl">返回</button><button onClick={nextStep} disabled={!state.microAction.what || !state.microAction.check1} className="flex-[2] py-4 bg-green-600 text-white rounded-2xl font-bold shadow-lg shadow-green-100">生成报告</button></div>
           </div>
         );
       case 5:
         return (
-          <div className="space-y-10 text-center pb-20">
-            <h2 className="text-4xl font-black">生活平衡轮报告</h2>
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 text-left">
+          <div className="space-y-10 text-center pb-20 animate-in fade-in duration-700">
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight">生活平衡轮报告</h2>
+            <div className="bg-white p-8 md:p-12 rounded-[2.5rem] shadow-2xl border border-slate-100 text-left">
               <RadarChart labels={state.dimensions} datasets={[
                 { label: '现状', data: state.currentScores, color: '#3b82f6', fill: true },
                 { label: '愿景', data: state.visionScores, color: '#f97316', fill: false, borderDash: [5, 5] }
               ]} />
-              <div className="mt-10 space-y-4">
-                <div className="p-6 bg-slate-50 rounded-2xl border-l-4 border-blue-500">
-                  <h4 className="text-sm text-slate-400 font-bold uppercase mb-2">核心杠杆点</h4>
-                  <p className="text-2xl font-black">{state.leveragePoint}</p>
+              <div className="mt-10 space-y-6">
+                <div className="p-6 bg-slate-50 rounded-2xl border-l-4 border-blue-500 shadow-sm">
+                  <h4 className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-2">CORE LEVERAGE POINT</h4>
+                  <p className="text-2xl font-black text-slate-900">{state.leveragePoint}</p>
                 </div>
-                <div className="p-6 bg-green-50 rounded-2xl border-l-4 border-green-500">
-                  <h4 className="text-sm text-slate-400 font-bold uppercase mb-2">微行动承诺</h4>
-                  <p className="text-xl font-bold">{state.microAction.what}</p>
-                  <p className="text-sm text-slate-500 mt-2">{state.microAction.when}</p>
+                <div className="p-6 bg-green-50 rounded-2xl border-l-4 border-green-500 shadow-sm">
+                  <h4 className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-2">MICRO COMMITMENT</h4>
+                  <p className="text-lg font-bold text-slate-800 leading-tight">{state.microAction.what}</p>
+                  <p className="text-xs text-slate-500 mt-2 font-mono uppercase">{state.microAction.when}</p>
                 </div>
               </div>
             </div>
-            <button onClick={() => window.print()} className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-bold no-print">打印/保存 PDF</button>
+            <div className="flex flex-col gap-4 items-center no-print">
+              <button onClick={() => window.print()} className="px-12 py-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-bold shadow-2xl hover:scale-105 transition-all active:scale-95 flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                打印 / 保存 PDF 报告
+              </button>
+              <button onClick={() => updateState({ step: 0 })} className="text-slate-400 text-sm hover:underline">重新开始新的觉察</button>
+            </div>
           </div>
         );
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
-      <header className="sticky top-0 bg-white/80 backdrop-blur-md border-b px-6 py-4 flex justify-between items-center no-print">
-        <h1 className="font-bold">阿呆的生命平衡轮</h1>
-        <span className="text-xs text-slate-400 uppercase tracking-widest">Step {state.step + 1} / 6</span>
+    <div className="min-h-screen bg-[#fcfdfe] text-slate-800 pb-20">
+      <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-slate-100 no-print">
+        <div className="max-w-2xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black shadow-lg">阿</div>
+            <div>
+              <h1 className="text-sm font-bold text-slate-900 tracking-tight">阿呆的生命平衡轮</h1>
+              <p className="text-[10px] text-slate-400 font-medium">DIGITAL COACH</p>
+            </div>
+          </div>
+          <div className="text-right">
+             <span className="text-xs font-black text-slate-900 tabular-nums uppercase tracking-widest">STEP {state.step + 1} / 6</span>
+          </div>
+        </div>
+        <div className="w-full h-1.5 bg-slate-50 relative overflow-hidden">
+          <div className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-400 via-indigo-500 to-orange-400 transition-all duration-700 ease-in-out" style={{ width: `${progressPercentage}%` }} />
+        </div>
       </header>
-      <main className="max-w-2xl mx-auto px-6 pt-10">
+      <main className="max-w-2xl mx-auto px-6 pt-12">
         {renderContent()}
       </main>
+      <footer className="max-w-2xl mx-auto px-6 mt-10 text-center text-[10px] text-slate-300 uppercase tracking-widest no-print">
+        Awareness is the first step towards change
+      </footer>
     </div>
   );
 };
